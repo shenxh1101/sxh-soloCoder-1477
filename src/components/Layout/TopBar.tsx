@@ -16,7 +16,11 @@ const titleMap: Record<string, string> = {
   "/settlement": "今日结算",
 };
 
-export default function TopBar() {
+interface TopBarProps {
+  title?: string;
+}
+
+export default function TopBar({ title }: TopBarProps) {
   const location = useLocation();
   const sales = useAppStore((s) => s.sales);
   const ingredients = useAppStore((s) => s.ingredients);
@@ -35,7 +39,7 @@ export default function TopBar() {
     return ingredients.filter((i) => i.stock <= i.minThreshold).length;
   }, [ingredients]);
 
-  const pageTitle = titleMap[location.pathname] || "早点管家";
+  const pageTitle = title || titleMap[location.pathname] || "早点管家";
 
   return (
     <header className="ml-60 h-16 bg-white/80 backdrop-blur border-b border-gray-100 px-6 flex items-center justify-between sticky top-0 z-10">

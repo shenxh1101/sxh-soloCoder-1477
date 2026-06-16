@@ -1,7 +1,10 @@
 import { useMemo, useState } from "react";
+import { ArrowUp, ArrowDown, Minus } from "lucide-react";
 import { useAppStore } from "@/store/useAppStore";
 import { fmtMoney } from "@/utils/money";
 import { formatDate } from "@/utils/date";
+import { calcPurchasePriceDiff } from "@/utils/priceDiff";
+import { cn } from "@/lib/utils";
 import Empty from "@/components/Empty";
 
 export default function Purchases() {
@@ -79,6 +82,9 @@ export default function Purchases() {
                       单价
                     </th>
                     <th className="px-4 py-3 text-right text-sm font-medium text-gray-600">
+                      涨跌
+                    </th>
+                    <th className="px-4 py-3 text-right text-sm font-medium text-gray-600">
                       总金额
                     </th>
                   </tr>
@@ -86,6 +92,7 @@ export default function Purchases() {
                 <tbody>
                   {filteredPurchases.map((p) => {
                     const ing = ingredientById.get(p.ingredientId);
+                    const diff = calcPurchasePriceDiff(purchases, p);
                     return (
                       <tr
                         key={p.id}
@@ -108,6 +115,33 @@ export default function Purchases() {
                         </td>
                         <td className="px-4 py-3 text-right text-sm text-gray-700">
                           {fmtMoney(p.unitPrice)}
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          {diff ? (
+                            <span
+                              className={cn(
+                                "inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 text-xs font-medium",
+                                diff.type === "up"
+                                  ? "bg-warn-500/10 text-warn-500"
+                                  : diff.type === "down"
+                                  ? "bg-success-500/10 text-success-600"
+                                  : "bg-gray-100 text-gray-500"
+                              )}
+                            >
+                              {diff.type === "up" && <ArrowUp size={12} />}
+                              {diff.type === "down" && <ArrowDown size={12} />}
+                              {diff.type === "same" && <Minus size={12} />}
+                              {diff.type !== "same" && (
+                                <>
+                                  {fmtMoney(diff.diff)}
+                                  <span className="opacity-70">({diff.percent}%)</span>
+                                </>
+                              )}
+                              {diff.type === "same" && "持平"}
+                            </span>
+                          ) : (
+                            <span className="text-xs text-gray-300">—</span>
+                          )}
                         </td>
                         <td className="px-4 py-3 text-right">
                           <span className="text-sm font-semibold text-brand-600">
