@@ -6,6 +6,7 @@ import {
   Users,
   BarChart3,
   Receipt,
+  FileCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -16,6 +17,7 @@ const menuItems = [
   { to: "/suppliers", label: "供货商", emoji: "🚚", Icon: Users },
   { to: "/reports", label: "经营报表", emoji: "📊", Icon: BarChart3 },
   { to: "/purchases", label: "进货记录", emoji: "🧾", Icon: Receipt },
+  { to: "/settlement", label: "今日结算", emoji: "📋", Icon: FileCheck },
 ];
 
 export default function Sidebar() {

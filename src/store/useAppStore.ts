@@ -56,6 +56,7 @@ interface AppState {
 
   getLowStockIngredients: () => Ingredient[];
   getTodayStats: () => { revenue: number; profit: number; orders: number };
+  getLastPurchasePrice: (ingredientId: string, supplierId: string) => number | null;
 }
 
 export const useAppStore = create<AppState>()(
@@ -297,6 +298,14 @@ export const useAppStore = create<AppState>()(
           profit: round2(todaySales.reduce((sum, s) => sum + s.profit, 0)),
           orders: todaySales.length,
         };
+      },
+
+      getLastPurchasePrice: (ingredientId, supplierId) => {
+        const purchases = get().purchases.filter(
+          (p) => p.ingredientId === ingredientId && p.supplierId === supplierId
+        );
+        if (purchases.length === 0) return null;
+        return purchases[0].unitPrice;
       },
     }),
     {

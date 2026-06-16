@@ -14,10 +14,10 @@ import {
 } from "recharts";
 import { useAppStore } from "@/store/useAppStore";
 import type { Sale } from "@/types";
-import { getWeekDates, getDayLabel, formatDate, todayStr } from "@/utils/date";
+import { getWeekDates, getLast7DaysDates, getMonthDates, getPrevMonth, getNextMonth, getDayLabel, formatDate, todayStr } from "@/utils/date";
 import { fmtMoney, round2 } from "@/utils/money";
 
-type TimeRange = "today" | "week" | "last7days";
+type TimeRange = "today" | "week" | "last7days" | "month";
 
 interface HotProduct {
   productId: string;
@@ -35,6 +35,40 @@ interface DailyTrend {
 export default function Reports() {
   const sales = useAppStore((s) => s.sales);
   const [timeRange, setTimeRange] = useState<TimeRange>("week");
+  const now = new Date();
+  const [viewYear, setViewYear] = useState(now.getFullYear());
+  const [viewMonth, setViewMonth] = useState(now.getMonth() + 1);
+
+  const handleTimeRangeChange = (range: TimeRange) => {
+    setTimeRange(range);
+    if (range === "month") {
+      const t = new Date();
+      setViewYear(t.getFullYear());
+      setViewMonth(t.getMonth() + 1);
+    }
+  };
+
+  const handlePrevMonth = () => {
+    const prev = getPrevMonth(viewYear, viewMonth);
+    setViewYear(prev.year);
+    setViewMonth(prev.month);
+  };
+
+  const handleNextMonth = () => {
+    const next = getNextMonth(viewYear, viewMonth);
+    const t = new Date();
+    if (next.year > t.getFullYear() || (next.year === t.getFullYear() && next.month > t.getMonth() + 1)) {
+      return;
+    }
+    setViewYear(next.year);
+    setViewMonth(next.month);
+  };
+
+  const canGoNextMonth = (() => {
+    const t = new Date();
+    const next = getNextMonth(viewYear, viewMonth);
+    return !(next.year > t.getFullYear() || (next.year === t.getFullYear() && next.month > t.getMonth() + 1));
+  })();
 
   const dateRange = useMemo(() => {
     const today = todayStr();
@@ -43,22 +77,12 @@ export default function Reports() {
         return [today];
       case "week":
         return getWeekDates();
-      case "last7days": {
-        const dates: string[] = [];
-        const t = new Date();
-        for (let i = 6; i >= 0; i--) {
-          const d = new Date(t);
-          d.setDate(t.getDate() - i);
-          dates.push(
-            `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
-              d.getDate()
-            ).padStart(2, "0")}`
-          );
-        }
-        return dates;
-      }
+      case "last7days":
+        return getLast7DaysDates();
+      case "month":
+        return getMonthDates(viewYear, viewMonth);
     }
-  }, [timeRange]);
+  }, [timeRange, viewYear, viewMonth]);
 
   const filteredSales = useMemo(() => {
     return sales.filter((s) => dateRange.includes(s.date));
@@ -105,12 +129,25 @@ export default function Reports() {
       const existing = map.get(sale.date) || 0;
       map.set(sale.date, existing + sale.totalAmount);
     });
-    return dateRange.map((date) => ({
-      date,
-      label: `${formatDate(date)} ${getDayLabel(date)}`,
-      totalAmount: round2(map.get(date) || 0),
-    }));
-  }, [filteredSales, dateRange]);
+    return dateRange.map((date) => {
+      let label: string;
+      switch (timeRange) {
+        case "today":
+          label = getDayLabel(date);
+          break;
+        case "month":
+          label = `${formatDate(date)}`;
+          break;
+        default:
+          label = `${formatDate(date)} ${getDayLabel(date)}`;
+      }
+      return {
+        date,
+        label,
+        totalAmount: round2(map.get(date) || 0),
+      };
+    });
+  }, [filteredSales, dateRange, timeRange]);
 
   const maxDayAmount = useMemo(() => {
     if (dailyTrend.length === 0) return 0;
@@ -121,6 +158,7 @@ export default function Reports() {
     { key: "today", label: "今日" },
     { key: "week", label: "本周" },
     { key: "last7days", label: "最近7天" },
+    { key: "month", label: "本月" },
   ];
 
   const statCards = [
@@ -165,11 +203,11 @@ export default function Reports() {
       <div className="mx-auto max-w-6xl">
         <div className="mb-6 flex items-center justify-between">
           <h1 className="text-2xl font-bold text-gray-800">经营报表</h1>
-          <div className="flex gap-2">
+          <div className="flex items-center gap-2">
             {timeButtons.map((btn) => (
               <button
                 key={btn.key}
-                onClick={() => setTimeRange(btn.key)}
+                onClick={() => handleTimeRangeChange(btn.key)}
                 className={`rounded-full px-4 py-2 text-sm font-medium transition-all ${
                   timeRange === btn.key
                     ? "bg-gradient-to-r from-brand-500 to-brand-400 text-white shadow-soft"
@@ -179,6 +217,30 @@ export default function Reports() {
                 {btn.label}
               </button>
             ))}
+            {timeRange === "month" && (
+              <div className="ml-2 flex items-center gap-1">
+                <button
+                  onClick={handlePrevMonth}
+                  className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-gray-600 transition-all hover:bg-brand-50 hover:text-brand-500"
+                >
+                  ◀
+                </button>
+                <span className="min-w-[90px] text-center text-sm font-semibold text-gray-700">
+                  {viewYear}年{viewMonth}月
+                </span>
+                <button
+                  onClick={handleNextMonth}
+                  disabled={!canGoNextMonth}
+                  className={`flex h-8 w-8 items-center justify-center rounded-full transition-all ${
+                    canGoNextMonth
+                      ? "bg-white text-gray-600 hover:bg-brand-50 hover:text-brand-500"
+                      : "cursor-not-allowed bg-gray-100 text-gray-300"
+                  }`}
+                >
+                  ▶
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
@@ -254,13 +316,15 @@ export default function Reports() {
           <div className="card p-5">
             <div className="mb-4 flex items-center justify-between">
               <h2 className="text-lg font-semibold text-gray-800">每日销售趋势</h2>
-              {dailyTrend.some((d) => d.totalAmount === maxDayAmount && maxDayAmount > 0) && (
+              {timeRange !== "today" && dailyTrend.some((d) => d.totalAmount === maxDayAmount && maxDayAmount > 0) && (
                 <span className="chip bg-warn-500/10 text-warn-600">
                   🔥 生意最旺:{" "}
-                  {
-                    dailyTrend.find((d) => d.totalAmount === maxDayAmount)
-                      ?.label
-                  }
+                  {timeRange === "month"
+                    ? (() => {
+                        const found = dailyTrend.find((d) => d.totalAmount === maxDayAmount);
+                        return found ? `${formatDate(found.date)} ${getDayLabel(found.date)}` : found?.label;
+                      })()
+                    : dailyTrend.find((d) => d.totalAmount === maxDayAmount)?.label}
                 </span>
               )}
             </div>
@@ -284,7 +348,10 @@ export default function Reports() {
                       const parts = value.split(" ");
                       return parts.length > 1 ? `${parts[0]}\n${parts[1]}` : value;
                     }}
-                    height={50}
+                    angle={timeRange === "month" ? -45 : 0}
+                    textAnchor={timeRange === "month" ? "end" : "middle"}
+                    height={timeRange === "month" ? 80 : 50}
+                    interval={timeRange === "month" ? 0 : undefined}
                   />
                   <YAxis
                     tick={{ fontSize: 12, fill: "#888" }}

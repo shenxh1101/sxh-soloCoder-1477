@@ -7,6 +7,7 @@ import Products from "@/pages/Products";
 import Suppliers from "@/pages/Suppliers";
 import Purchases from "@/pages/Purchases";
 import Reports from "@/pages/Reports";
+import Settlement from "@/pages/Settlement";
 
 export default function App() {
   return (
@@ -21,6 +22,7 @@ export default function App() {
           <Route path="/suppliers" element={<Suppliers />} />
           <Route path="/reports" element={<Reports />} />
           <Route path="/purchases" element={<Purchases />} />
+          <Route path="/settlement" element={<Settlement />} />
         </Routes>
       </div>
     </Router>

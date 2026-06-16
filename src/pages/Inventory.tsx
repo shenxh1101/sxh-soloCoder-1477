@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Pencil, Plus, Check, X } from "lucide-react";
 import { useAppStore } from "@/store/useAppStore";
 import type { Ingredient } from "@/types";
@@ -11,12 +11,28 @@ export default function Inventory() {
   const suppliers = useAppStore((s) => s.suppliers);
   const addIngredientStock = useAppStore((s) => s.addIngredientStock);
   const updateIngredientThreshold = useAppStore((s) => s.updateIngredientThreshold);
+  const getLastPurchasePrice = useAppStore((s) => s.getLastPurchasePrice);
 
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedIngredientId, setSelectedIngredientId] = useState("");
   const [selectedSupplierId, setSelectedSupplierId] = useState("");
   const [quantity, setQuantity] = useState("");
   const [unitPrice, setUnitPrice] = useState("");
+
+  const lastPrice = useMemo(() => {
+    if (!selectedIngredientId || !selectedSupplierId) return null;
+    return getLastPurchasePrice(selectedIngredientId, selectedSupplierId);
+  }, [selectedIngredientId, selectedSupplierId, getLastPurchasePrice]);
+
+  const priceDiff = useMemo(() => {
+    const current = parseFloat(unitPrice);
+    if (!lastPrice || isNaN(current) || current <= 0) return null;
+    const diff = current - lastPrice;
+    const pct = ((diff / lastPrice) * 100).toFixed(1);
+    if (Math.abs(diff) < 0.005) return { direction: "same" as const, diff: 0, pct: "0" };
+    if (diff > 0) return { direction: "up" as const, diff, pct };
+    return { direction: "down" as const, diff: Math.abs(diff), pct };
+  }, [lastPrice, unitPrice]);
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingThreshold, setEditingThreshold] = useState("");
@@ -251,15 +267,57 @@ export default function Inventory() {
                 min="0"
                 step="any"
               />
+              {lastPrice !== null && (
+                <div className="mt-1.5 space-y-1">
+                  <p className="text-xs text-blue-500">
+                    上次进价：¥{lastPrice.toFixed(2)}/单位
+                  </p>
+                  {priceDiff && (
+                    <div
+                      className={cn(
+                        "rounded-md px-2.5 py-1.5 text-xs font-medium",
+                        priceDiff.direction === "up" && "bg-red-50 text-red-600",
+                        priceDiff.direction === "down" && "bg-green-50 text-green-600",
+                        priceDiff.direction === "same" && "bg-gray-100 text-gray-500"
+                      )}
+                    >
+                      {priceDiff.direction === "up" && (
+                        <>⚠️ 比上次涨价 ¥{priceDiff.diff.toFixed(2)} (+{priceDiff.pct}%)</>
+                      )}
+                      {priceDiff.direction === "down" && (
+                        <>📉 比上次降价 ¥{priceDiff.diff.toFixed(2)} (-{priceDiff.pct}%)</>
+                      )}
+                      {priceDiff.direction === "same" && <>与上次进价相同</>}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
             {quantity && unitPrice && !isNaN(parseFloat(quantity)) && !isNaN(parseFloat(unitPrice)) && (
-              <div className="rounded-xl bg-brand-50 px-4 py-3">
+              <div className="rounded-xl bg-brand-50 px-4 py-3 space-y-1">
                 <div className="text-sm text-brand-600">
                   总金额：
                   <span className="text-lg font-semibold">
                     {fmtMoney(parseFloat(quantity) * parseFloat(unitPrice))}
                   </span>
                 </div>
+                {lastPrice !== null && (
+                  <div className="text-xs text-brand-400">
+                    上次总金额：{fmtMoney(parseFloat(quantity) * lastPrice)}
+                    {priceDiff && priceDiff.direction !== "same" && (
+                      <span
+                        className={cn(
+                          "ml-2",
+                          priceDiff.direction === "up" && "text-red-500",
+                          priceDiff.direction === "down" && "text-green-500"
+                        )}
+                      >
+                        {priceDiff.direction === "up" ? "多" : "少"}付 ¥
+                        {(Math.abs(parseFloat(quantity)) * priceDiff.diff).toFixed(2)}
+                      </span>
+                    )}
+                  </div>
+                )}
               </div>
             )}
             <div className="flex gap-3 pt-2">

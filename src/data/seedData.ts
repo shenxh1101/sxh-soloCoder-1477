@@ -42,7 +42,7 @@ export const seedBom: BomItem[] = [
   { id: genId(), productId: p3, ingredientId: i3, quantity: 0.03 },
   { id: genId(), productId: p3, ingredientId: i5, quantity: 0.005 },
   { id: genId(), productId: p4, ingredientId: i1, quantity: 0.02 },
-  { id: genId(), productId: p5, ingredientId: i4, quantity: 0.1 },
+  { id: genId(), productId: p5, ingredientId: i4, quantity: 1 },
   { id: genId(), productId: p5, ingredientId: i5, quantity: 0.01 },
 ];
 
@@ -83,8 +83,8 @@ export const seedSales: Sale[] = [
     id: sampleSaleId,
     date: todayStr(),
     totalAmount: 19.5,
-    totalCost: 6.8,
-    profit: 12.7,
+    totalCost: 8.3,
+  profit: 11.2,
     createdAt: nowStr(),
     items: [
       {
@@ -115,7 +115,7 @@ export const seedSales: Sale[] = [
         quantity: 5,
         unitPrice: 1.5,
         subtotal: 7.5,
-        cost: 2.6,
+        cost: 4.1,
       },
     ],
   },
