@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { useAppStore } from "@/store/useAppStore";
 import { todayStr, formatDateFull } from "@/utils/date";
 import { fmtMoney, round2 } from "@/utils/money";
+import { cn } from "@/lib/utils";
 
 interface ProductSummary {
   productId: string;
@@ -14,8 +15,22 @@ interface ProductSummary {
   profit: number;
 }
 
+interface IngredientUsageWithStock {
+    ingredientId: string;
+    ingredientName: string;
+    emoji: string;
+    unit: string;
+    used: number;
+    avgCost: number;
+    totalCost: number;
+    remainingStock: number;
+    minThreshold: number;
+  }
+
 export default function Settlement() {
   const sales = useAppStore((s) => s.sales);
+  const ingredients = useAppStore((s) => s.ingredients);
+  const getIngredientUsage = useAppStore((s) => s.getIngredientUsage);
   const today = todayStr();
 
   const todaySales = useMemo(
@@ -71,6 +86,23 @@ export default function Settlement() {
     return { totalQty, totalSubtotal, totalCost, totalProfit };
   }, [productSummaries]);
 
+  const todayIngredientUsage = useMemo((): IngredientUsageWithStock[] => {
+    const usage = getIngredientUsage([today, today]);
+    return usage.map((item) => {
+      const ing = ingredients.find((i) => i.id === item.ingredientId);
+      return {
+        ...item,
+        remainingStock: ing?.stock ?? 0,
+        minThreshold: ing?.minThreshold ?? 0,
+      };
+    });
+  }, [getIngredientUsage, today, ingredients]);
+
+  const totalIngredientCost = useMemo(
+    () => round2(todayIngredientUsage.reduce((sum, item) => sum + item.totalCost, 0)),
+    [todayIngredientUsage]
+  );
+
   const sortedSales = useMemo(
     () => [...todaySales].sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
     [todaySales]
@@ -98,6 +130,16 @@ export default function Settlement() {
     lines.push(`合计：          ${fmtMoney(summaryTotals.totalSubtotal)}`);
     lines.push(`成本：          ${fmtMoney(summaryTotals.totalCost)}`);
     lines.push(`毛利：          ${fmtMoney(summaryTotals.totalProfit)}`);
+    if (todayIngredientUsage.length > 0) {
+      lines.push("--------------------------");
+      lines.push("原料消耗：");
+      todayIngredientUsage.forEach((item) => {
+        const name = item.ingredientName.padEnd(8, " ");
+        const qty = `${item.used}${item.unit}`.padEnd(6, " ");
+        lines.push(`  ${name}${qty}${fmtMoney(item.totalCost)}`);
+      });
+      lines.push(`原料总成本：    ${fmtMoney(totalIngredientCost)}`);
+    }
     lines.push("==========================");
 
     const blob = new Blob([lines.join("\n")], { type: "text/plain;charset=utf-8" });
@@ -261,6 +303,79 @@ export default function Settlement() {
                 </tbody>
               </table>
             </div>
+          </div>
+
+          <div className="card mb-6 p-5">
+            <h2 className="mb-4 text-lg font-semibold text-gray-800">今日原料消耗</h2>
+            {todayIngredientUsage.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b-2 border-gray-100 text-left text-gray-500">
+                      <th className="pb-3 pr-4 font-medium">原料</th>
+                      <th className="pb-3 pr-4 font-medium text-right">今日消耗</th>
+                      <th className="pb-3 pr-4 font-medium text-right">剩余库存</th>
+                      <th className="pb-3 pr-4 font-medium text-right">单位</th>
+                      <th className="pb-3 pr-4 font-medium text-right">消耗成本</th>
+                      <th className="pb-3 font-medium text-right">状态</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {todayIngredientUsage.map((item) => {
+                      const isLow = item.remainingStock <= item.minThreshold;
+                      return (
+                        <tr key={item.ingredientId} className="border-b border-gray-50">
+                          <td className="py-3 pr-4">
+                            <span className="mr-1.5">{item.emoji}</span>
+                            {item.ingredientName}
+                          </td>
+                          <td className="py-3 pr-4 text-right font-medium text-gray-700">
+                            {item.used}
+                          </td>
+                          <td className="py-3 pr-4 text-right text-gray-700">
+                            {item.remainingStock}
+                          </td>
+                          <td className="py-3 pr-4 text-right text-gray-500">
+                            {item.unit}
+                          </td>
+                          <td className="py-3 pr-4 text-right text-gray-700">
+                            {fmtMoney(item.totalCost)}
+                          </td>
+                          <td className="py-3 text-right">
+                            <span
+                              className={cn(
+                                "chip",
+                                isLow
+                                  ? "bg-warn-500/10 text-warn-600"
+                                  : "bg-success-500/10 text-success-600"
+                              )}
+                            >
+                              {isLow ? "⚠️ 需补货" : "✅ 充足"}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                    <tr className="border-t-2 border-gray-200">
+                      <td className="py-3 pr-4 font-bold text-gray-800" colSpan={4}>
+                        合计
+                      </td>
+                      <td className="py-3 pr-4 text-right font-bold text-gray-800">
+                        {fmtMoney(totalIngredientCost)}
+                      </td>
+                      <td className="py-3" />
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="flex h-32 items-center justify-center text-gray-400">
+                <div className="text-center">
+                  <p className="mb-2 text-3xl">📭</p>
+                  <p className="text-sm">今日暂无原料消耗</p>
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="card p-5">

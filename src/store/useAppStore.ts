@@ -57,6 +57,29 @@ interface AppState {
   getLowStockIngredients: () => Ingredient[];
   getTodayStats: () => { revenue: number; profit: number; orders: number };
   getLastPurchasePrice: (ingredientId: string, supplierId: string) => number | null;
+  getIngredientUsage: (dateRange: [string, string]) => {
+    ingredientId: string;
+    ingredientName: string;
+    emoji: string;
+    unit: string;
+    used: number;
+    avgCost: number;
+    totalCost: number;
+  }[];
+  getRestockSuggestion: (days?: number) => {
+    ingredientId: string;
+    ingredientName: string;
+    emoji: string;
+    unit: string;
+    currentStock: number;
+    minThreshold: number;
+    avgCost: number;
+    dailyUsage: number;
+    daysLeft: number;
+    suggestQty: number;
+    estimatedCost: number;
+    needRestock: boolean;
+  }[];
 }
 
 export const useAppStore = create<AppState>()(
@@ -306,6 +329,106 @@ export const useAppStore = create<AppState>()(
         );
         if (purchases.length === 0) return null;
         return purchases[0].unitPrice;
+      },
+
+      getIngredientUsage: (dateRange) => {
+        const [startDate, endDate] = dateRange;
+        const { sales, bom, ingredients } = get();
+
+        const filteredSales = sales.filter(
+          (s) => s.date >= startDate && s.date <= endDate
+        );
+
+        const usageMap = new Map<
+          string,
+          { used: number; totalCost: number; ingredient: Ingredient }
+        >();
+
+        ingredients.forEach((ing) => {
+          usageMap.set(ing.id, { used: 0, totalCost: 0, ingredient: ing });
+        });
+
+        filteredSales.forEach((sale) => {
+          sale.items.forEach((item) => {
+            const productBom = bom.filter((b) => b.productId === item.productId);
+            productBom.forEach((b) => {
+              const usage = usageMap.get(b.ingredientId);
+              if (usage) {
+                const qtyUsed = b.quantity * item.quantity;
+                usage.used += qtyUsed;
+                usage.totalCost += qtyUsed * usage.ingredient.avgCost;
+              }
+            });
+          });
+        });
+
+        return Array.from(usageMap.entries())
+          .map(([ingredientId, data]) => ({
+            ingredientId,
+            ingredientName: data.ingredient.name,
+            emoji: data.ingredient.emoji,
+            unit: data.ingredient.unit,
+            used: round2(data.used),
+            avgCost: data.ingredient.avgCost,
+            totalCost: round2(data.totalCost),
+          }))
+          .filter((item) => item.used > 0)
+          .sort((a, b) => b.totalCost - a.totalCost);
+      },
+
+      getRestockSuggestion: (days = 7) => {
+        const { ingredients, sales, bom } = get();
+        const today = new Date();
+        const dates: string[] = [];
+        for (let i = days - 1; i >= 0; i--) {
+          const d = new Date(today);
+          d.setDate(today.getDate() - i);
+          dates.push(
+            `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
+              d.getDate()
+            ).padStart(2, "0")}`
+          );
+        }
+        const startDate = dates[0];
+        const endDate = dates[dates.length - 1];
+
+        const usageData = get().getIngredientUsage([startDate, endDate]);
+        const usageMap = new Map(usageData.map((u) => [u.ingredientId, u.used]));
+
+        return ingredients
+          .map((ing) => {
+            const periodUsage = usageMap.get(ing.id) || 0;
+            const dailyUsage = round2(periodUsage / days);
+            const daysLeft = dailyUsage > 0 ? Math.floor(ing.stock / dailyUsage) : 999;
+            const needRestock = daysLeft <= 3 || ing.stock <= ing.minThreshold;
+            const suggestQty = needRestock
+              ? Math.max(
+                  ing.minThreshold * 3 - ing.stock,
+                  dailyUsage * 7 - ing.stock + 1
+                )
+              : 0;
+            const estimatedCost = round2(Math.max(0, suggestQty) * ing.avgCost);
+
+            return {
+              ingredientId: ing.id,
+              ingredientName: ing.name,
+              emoji: ing.emoji,
+              unit: ing.unit,
+              currentStock: ing.stock,
+              minThreshold: ing.minThreshold,
+              avgCost: ing.avgCost,
+              dailyUsage,
+              daysLeft,
+              suggestQty: round2(Math.max(0, suggestQty)),
+              estimatedCost,
+              needRestock,
+            };
+          })
+          .sort((a, b) => {
+            if (a.needRestock && !b.needRestock) return -1;
+            if (!a.needRestock && b.needRestock) return 1;
+            return a.daysLeft - b.daysLeft;
+          });
       },
     }),
     {

@@ -12,6 +12,10 @@ export default function Inventory() {
   const addIngredientStock = useAppStore((s) => s.addIngredientStock);
   const updateIngredientThreshold = useAppStore((s) => s.updateIngredientThreshold);
   const getLastPurchasePrice = useAppStore((s) => s.getLastPurchasePrice);
+  const getRestockSuggestion = useAppStore((s) => s.getRestockSuggestion);
+
+  const restockSuggestions = getRestockSuggestion(7);
+  const needRestockItems = restockSuggestions.filter((item) => item.needRestock);
 
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedIngredientId, setSelectedIngredientId] = useState("");
@@ -94,6 +98,82 @@ export default function Inventory() {
             原料入库
           </button>
         </div>
+
+        {needRestockItems.length > 0 && (
+          <div className="mb-8">
+            <h2 className="mb-4 text-xl font-bold text-gray-800">
+              🧠 智能补货建议（基于最近7天销量）
+            </h2>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {needRestockItems.map((item) => (
+                <div
+                  key={item.ingredientId}
+                  className="card p-5 border-2 border-warn-200 bg-warn-50/50"
+                >
+                  <div className="mb-3 flex items-start justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="text-3xl">{item.emoji}</span>
+                      <h3 className="text-lg font-semibold text-gray-800">
+                        {item.ingredientName}
+                      </h3>
+                    </div>
+                    <span className="chip bg-warn-500/10 text-warn-600">
+                      需要补货
+                    </span>
+                  </div>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">当前库存</span>
+                      <span className="font-medium text-gray-800">
+                        {item.currentStock} {item.unit}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">日均用量</span>
+                      <span className="font-medium text-gray-800">
+                        {item.dailyUsage} {item.unit}/天
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">还能撑</span>
+                      <span
+                        className={cn(
+                          "font-semibold",
+                          item.daysLeft <= 3 ? "text-red-500" : "text-gray-800"
+                        )}
+                      >
+                        {item.daysLeft >= 999 ? "∞" : item.daysLeft}天
+                        {item.daysLeft <= 3 && " ⚠️"}
+                      </span>
+                    </div>
+                    <div className="my-3 border-t border-warn-200" />
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">建议补货</span>
+                      <span className="font-bold text-brand-600">
+                        {item.suggestQty} {item.unit}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">预计花费</span>
+                      <span className="font-bold text-gray-800">
+                        {fmtMoney(item.estimatedCost)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {restockSuggestions.length > 0 && needRestockItems.length === 0 && (
+          <div className="mb-8 card p-6 bg-success-50/50 border-2 border-success-200">
+            <div className="flex items-center justify-center gap-3 text-success-600">
+              <span className="text-3xl">✅</span>
+              <span className="text-lg font-semibold">所有原料库存充足</span>
+            </div>
+          </div>
+        )}
 
         <div className="space-y-3">
           {ingredients.map((ing) => {
